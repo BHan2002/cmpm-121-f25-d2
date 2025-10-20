@@ -24,6 +24,47 @@ btnMarker.dataset.color = "#222";
 btnMarker.title = "Marker (thick)";
 btnMarker.textContent = "Marker";
 
+const stickerBar = document.createElement("div");
+stickerBar.className = "toolbar stickers";
+
+const stickers: Array<{ name: string; emoji: string; size: number }> = [
+  { name: "Warwick", emoji: "🐺", size: 36 },
+  { name: "Vi", emoji: "🥊", size: 36 },
+  { name: "Jinx", emoji: "🎆", size: 36 },
+  { name: "Ekko", emoji: "⏱️", size: 36 },
+  { name: "Yasuo", emoji: "🌬️", size: 36 },
+  { name: "Ahri", emoji: "🦊", size: 36 },
+  { name: "Blitzcrank", emoji: "🤖", size: 36 },
+  { name: "Teemo", emoji: "🍄", size: 36 },
+  { name: "Illaoi", emoji: "🐙", size: 36 },
+  { name: "Darius", emoji: "🪓", size: 36 },
+];
+
+stickers.forEach(({ name, emoji, size }) => {
+  const b = document.createElement("button");
+  b.className = "tool-btn sticker-btn";
+  b.title = `${name} sticker`;
+  b.textContent = `${emoji} ${name}`;
+  b.addEventListener("click", () => {
+    // activate sticker tool + style
+    currentTool = "sticker";
+    currentStickerStyle = { emoji, fontSize: size };
+
+    // update selected visual (optional)
+    document.querySelectorAll(".tool-btn").forEach((el) =>
+      el.classList.remove("selectedTool")
+    );
+    b.classList.add("selectedTool");
+
+    // rebuild preview for sticker
+    rebuildPreviewFromTool();
+  });
+  stickerBar.appendChild(b);
+});
+
+// Append stickerBar somewhere near your existing toolbar/canvas:
+document.body.appendChild(stickerBar);
+
 toolbar.append(btnPen, btnMarker);
 
 /* ---- Drawable Interfaces ----------------------------------- */
@@ -73,6 +114,33 @@ export class MarkerLine implements DrawableThing {
     ctx.restore();
   }
 }
+/* ---- Sticker (Drawable Thing) ------------------------------ */
+class StickerShape implements DrawableThing {
+  private x: number;
+  private y: number;
+  constructor(
+    x: number,
+    y: number,
+    private emoji: string,
+    private fontSize: number,
+  ) {
+    this.x = x;
+    this.y = y;
+  }
+  drag(x: number, y: number) { // <— MOVE, don’t keep a path
+    this.x = x;
+    this.y = y;
+  }
+  display(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font =
+      `${this.fontSize}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`;
+    ctx.fillText(this.emoji, this.x, this.y);
+    ctx.restore();
+  }
+}
 
 /* ---- Preview (Command-like) -------------------------------- */
 interface PreviewRenderable {
@@ -83,27 +151,43 @@ interface PreviewRenderable {
 class CirclePreview implements PreviewRenderable {
   private x = 0;
   private y = 0;
-
   constructor(
     private radius: number,
-    private strokeStyle: string = "#666",
-    private lineWidth: number = 1,
+    private strokeStyle = "#666",
+    private lineWidth = 1,
   ) {}
-
-  setPos(x: number, y: number): void {
+  setPos(x: number, y: number) {
     this.x = x;
     this.y = y;
   }
-
-  draw(ctx: CanvasRenderingContext2D): void {
-    if (!Number.isFinite(this.x) || !Number.isFinite(this.y)) return;
+  draw(ctx: CanvasRenderingContext2D) {
     ctx.save();
     ctx.beginPath();
+    ctx.setLineDash([4, 4]);
     ctx.lineWidth = this.lineWidth;
     ctx.strokeStyle = this.strokeStyle;
-    ctx.setLineDash([4, 4]); // dashed outline preview
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.restore();
+  }
+}
+
+class StickerPreview implements PreviewRenderable {
+  private x = 0;
+  private y = 0;
+  constructor(private emoji: string, private fontSize: number) {}
+  setPos(x: number, y: number) {
+    this.x = x;
+    this.y = y;
+  }
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.globalAlpha = 0.6; // translucent preview
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font =
+      `${this.fontSize}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`;
+    ctx.fillText(this.emoji, this.x, this.y);
     ctx.restore();
   }
 }
@@ -133,13 +217,8 @@ function clearCanvas() {
 }
 function renderAll() {
   clearCanvas();
-  // draw committed shapes
   for (const thing of displayList) thing.display(ctx);
-
-  // draw preview only when the user is NOT dragging a live shape
-  if (!currentShape && preview) {
-    preview.draw(ctx);
-  }
+  if (!currentShape && preview) preview.draw(ctx);
 }
 
 /* ---- Tool Style State -------------------------------------- */
@@ -155,15 +234,33 @@ let currentToolStyle: ToolStyle = {
   strokeStyle: "#222",
   lineCap: "round",
 };
+type ToolKind = "marker" | "sticker";
+
+type StickerStyle = {
+  emoji: string; // the sticker glyph (emoji)
+  fontSize: number; // px
+};
+
+let currentTool: ToolKind = "marker";
+
+let currentStickerStyle: StickerStyle = {
+  emoji: "🦊", // default Ahri
+  fontSize: 36,
+};
 
 let preview: PreviewRenderable | null = null;
 
 // Helper to rebuild preview when tool changes (width/color etc.)
 function rebuildPreviewFromTool() {
-  // radius is half the stroke width so it visually matches the marker’s footprint
-  const radius = Math.max(1, currentToolStyle.lineWidth / 2);
-  // Make the outline similar to the tool color but lighter
-  preview = new CirclePreview(radius, currentToolStyle.strokeStyle, 1);
+  if (currentTool === "marker") {
+    const radius = Math.max(1, currentToolStyle.lineWidth / 2);
+    preview = new CirclePreview(radius, currentToolStyle.strokeStyle, 1);
+  } else { // sticker
+    preview = new StickerPreview(
+      currentStickerStyle.emoji,
+      currentStickerStyle.fontSize,
+    );
+  }
 }
 
 /* ---- Hook up toolbar (now that buttons exist) --------------- */
@@ -176,6 +273,11 @@ function initToolButtons() {
       const name = btn.dataset.tool ?? "custom";
       const width = Number(btn.dataset.width ?? "3");
       const color = btn.dataset.color ?? "#222";
+
+      if (name === "pen" || name === "marker") {
+        currentTool = "marker";
+      }
+
       currentToolStyle = {
         name,
         lineWidth: Number.isFinite(width) ? width : 3,
@@ -201,13 +303,21 @@ canvas.addEventListener("pointerdown", (e) => {
   canvas.setPointerCapture(e.pointerId);
   const { x, y } = toLocal(e);
 
-  currentShape = new MarkerLine(x, y, {
-    strokeStyle: currentToolStyle.strokeStyle,
-    lineWidth: currentToolStyle.lineWidth,
-    lineCap: currentToolStyle.lineCap ?? "round",
-  });
+  if (currentTool === "marker") {
+    currentShape = new MarkerLine(x, y, {
+      strokeStyle: currentToolStyle.strokeStyle,
+      lineWidth: currentToolStyle.lineWidth,
+      lineCap: currentToolStyle.lineCap ?? "round",
+    });
+  } else { // sticker
+    currentShape = new StickerShape(
+      x,
+      y,
+      currentStickerStyle.emoji,
+      currentStickerStyle.fontSize,
+    );
+  }
 
-  // show while dragging
   displayList.push(currentShape);
   renderAll();
 });
@@ -232,8 +342,8 @@ canvas.addEventListener("pointermove", (e) => {
 
 canvas.addEventListener("pointerup", () => {
   if (!currentShape) return;
-  undoStack.push(currentShape); // commit for undo
-  redoStack.length = 0; // invalidate redo
+  undoStack.push(currentShape);
+  redoStack.length = 0;
   currentShape = null;
   renderAll();
 });
@@ -285,6 +395,7 @@ document.body.innerHTML = ""; // reset ONCE at the top
 document.body.append(
   header,
   toolbar,
+  stickerBar,
   canvas,
   makeClearButton(),
   undoButton,
