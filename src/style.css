@@ -5,3 +5,8 @@
   width: 256;
   height: 256;
 }
+.tool-btn.selectedTool {
+  outline: 2px solid #2003b2; /* or your preferred highlight */
+  outline-offset: 2px;
+  filter: brightness(1.05);
+}
