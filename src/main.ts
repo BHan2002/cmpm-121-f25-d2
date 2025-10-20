@@ -261,7 +261,7 @@ export function redo() {
   undoStack.push(shape);
   renderAll();
 }
-function makeClearButton(ctx: CanvasRenderingContext2D) {
+function makeClearButton() {
   const button = document.createElement("button");
   button.textContent = "Clear";
   button.addEventListener("click", () => {
@@ -286,7 +286,7 @@ document.body.append(
   header,
   toolbar,
   canvas,
-  makeClearButton(ctx),
+  makeClearButton(),
   undoButton,
   redoButton,
 );
