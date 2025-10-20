@@ -274,6 +274,7 @@ function initToolButtons() {
       const width = Number(btn.dataset.width ?? "3");
       const color = btn.dataset.color ?? "#222";
 
+      // Allows to switch back to pen/marker after using sticker
       if (name === "pen" || name === "marker") {
         currentTool = "marker";
       }
