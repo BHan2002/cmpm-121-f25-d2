@@ -74,6 +74,40 @@ export class MarkerLine implements DrawableThing {
   }
 }
 
+/* ---- Preview (Command-like) -------------------------------- */
+interface PreviewRenderable {
+  draw(ctx: CanvasRenderingContext2D): void;
+  setPos(x: number, y: number): void;
+}
+
+class CirclePreview implements PreviewRenderable {
+  private x = 0;
+  private y = 0;
+
+  constructor(
+    private radius: number,
+    private strokeStyle: string = "#666",
+    private lineWidth: number = 1,
+  ) {}
+
+  setPos(x: number, y: number): void {
+    this.x = x;
+    this.y = y;
+  }
+
+  draw(ctx: CanvasRenderingContext2D): void {
+    if (!Number.isFinite(this.x) || !Number.isFinite(this.y)) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.lineWidth = this.lineWidth;
+    ctx.strokeStyle = this.strokeStyle;
+    ctx.setLineDash([4, 4]); // dashed outline preview
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 /* ---- History + Display List -------------------------------- */
 const displayList: Displayable[] = [];
 const undoStack: Displayable[] = [];
@@ -99,7 +133,13 @@ function clearCanvas() {
 }
 function renderAll() {
   clearCanvas();
+  // draw committed shapes
   for (const thing of displayList) thing.display(ctx);
+
+  // draw preview only when the user is NOT dragging a live shape
+  if (!currentShape && preview) {
+    preview.draw(ctx);
+  }
 }
 
 /* ---- Tool Style State -------------------------------------- */
@@ -115,6 +155,16 @@ let currentToolStyle: ToolStyle = {
   strokeStyle: "#222",
   lineCap: "round",
 };
+
+let preview: PreviewRenderable | null = null;
+
+// Helper to rebuild preview when tool changes (width/color etc.)
+function rebuildPreviewFromTool() {
+  // radius is half the stroke width so it visually matches the marker’s footprint
+  const radius = Math.max(1, currentToolStyle.lineWidth / 2);
+  // Make the outline similar to the tool color but lighter
+  preview = new CirclePreview(radius, currentToolStyle.strokeStyle, 1);
+}
 
 /* ---- Hook up toolbar (now that buttons exist) --------------- */
 function initToolButtons() {
@@ -134,6 +184,7 @@ function initToolButtons() {
       };
       buttons.forEach((b) => b.classList.remove("selectedTool"));
       btn.classList.add("selectedTool");
+      rebuildPreviewFromTool();
     });
   });
 }
@@ -162,10 +213,21 @@ canvas.addEventListener("pointerdown", (e) => {
 });
 
 canvas.addEventListener("pointermove", (e) => {
-  if (!currentShape) return;
   const { x, y } = toLocal(e);
-  currentShape.drag(x, y);
-  renderAll();
+
+  if (currentShape) {
+    // drawing in progress -> grow the line
+    currentShape.drag(x, y);
+    renderAll();
+    return;
+  }
+
+  // Not drawing -> broadcast a tool-moved event for preview
+  canvas.dispatchEvent(
+    new CustomEvent("tool-moved", {
+      detail: { x, y, tool: currentToolStyle },
+    }),
+  );
 });
 
 canvas.addEventListener("pointerup", () => {
@@ -174,6 +236,13 @@ canvas.addEventListener("pointerup", () => {
   redoStack.length = 0; // invalidate redo
   currentShape = null;
   renderAll();
+});
+
+canvas.addEventListener("tool-moved", (e: Event) => {
+  const ev = e as CustomEvent<{ x: number; y: number }>;
+  if (!preview) return;
+  preview.setPos(ev.detail.x, ev.detail.y);
+  renderAll(); // re-paint to show the preview
 });
 
 /* ---- Undo / Redo / Clear ----------------------------------- */
@@ -224,3 +293,4 @@ document.body.append(
 
 /* Now that toolbar exists in DOM, init its handlers */
 initToolButtons();
+rebuildPreviewFromTool();
