@@ -10,3 +10,60 @@
   outline-offset: 2px;
   filter: brightness(1.05);
 }
+
+/* Theme tokens */
+:root {
+  --bg: #ffffff;
+  --fg: #111111;
+  --toolbar-bg: #f3f3f3;
+  --toolbar-border: #d7d7d7;
+  --button-bg: #ffffff;
+  --button-fg: #111111;
+  --button-border: #cfcfcf;
+  --canvas-bg: #ffffff;
+}
+
+body.dark {
+  --bg: #0b0b0c;
+  --fg: #eeeeee;
+  --toolbar-bg: #1a1a1d;
+  --toolbar-border: #2a2a30;
+  --button-bg: #16161a;
+  --button-fg: #f1f1f1;
+  --button-border: #2e2e35;
+  --canvas-bg: #0f0f12;
+}
+
+/* Apply tokens */
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.toolbar {
+  background: var(--toolbar-bg);
+  border: 1px solid var(--toolbar-border);
+}
+
+.tool-btn, .sticker-btn, button {
+  background: var(--button-bg);
+  color: var(--button-fg);
+  border: 1px solid var(--button-border);
+}
+
+/* Ensure canvas picks up theme background */
+.canvas-screen {
+  background: var(--canvas-bg);
+}
+
+/* The floating toggle button */
+.dark-toggle {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  z-index: 9999;
+  cursor: pointer;
+}

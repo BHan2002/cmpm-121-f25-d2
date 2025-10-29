@@ -460,6 +460,31 @@ const redoButton = document.createElement("button");
 redoButton.textContent = "Redo";
 redoButton.addEventListener("click", () => redo());
 
+/* ---- DARK MODE -------------------------------------------- */
+function makeDarkModeToggle() {
+  const button = document.createElement("button");
+  button.className = "dark-toggle";
+  button.title = "Toggle dark mode";
+  button.textContent = "🌙 Dark";
+
+  // Initialize from saved pref (optional)
+  const saved = localStorage.getItem("theme");
+  if (saved === "dark") {
+    document.body.classList.add("dark");
+    button.textContent = "☀️ Light";
+  }
+
+  button.addEventListener("click", () => {
+    const isDark = document.body.classList.toggle("dark");
+    button.textContent = isDark ? "☀️ Light" : "🌙 Dark";
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+  });
+
+  return button;
+}
+
+const darkModeButton = makeDarkModeToggle();
+
 /* ---- Attach to DOM in the right order ---------------------- */
 document.body.innerHTML = ""; // reset ONCE at the top
 document.body.append(
@@ -471,6 +496,7 @@ document.body.append(
   undoButton,
   redoButton,
   exportButton,
+  darkModeButton,
 );
 
 /* Appendings */
