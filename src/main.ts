@@ -4,7 +4,7 @@ import "./style.css";
 const header = document.createElement("h1");
 header.textContent = "Canvas";
 
-/* ---- Toolbar (build with DOM, not innerHTML) ---------------- */
+/* ---- Toolbar (DOM) ---------------- */
 const toolbar = document.createElement("div");
 toolbar.className = "toolbar";
 
@@ -40,32 +40,73 @@ const stickers: Array<{ name: string; emoji: string; size: number }> = [
   { name: "Darius", emoji: "🪓", size: 36 },
 ];
 
-stickers.forEach(({ name, emoji, size }) => {
+/** ---- Sticker button creation / data-driven render ---- **/
+function createStickerButton(
+  entry: { name: string; emoji: string; size: number },
+) {
+  const { name, emoji, size } = entry;
   const b = document.createElement("button");
   b.className = "tool-btn sticker-btn";
   b.title = `${name} sticker`;
-  b.textContent = `${emoji} ${name}`;
+  // Button label: show emoji (or user text). If emoji equals name, keep single label.
+  b.textContent = emoji === name ? `${emoji}` : `${emoji} ${name}`;
   b.addEventListener("click", () => {
     // activate sticker tool + style
     currentTool = "sticker";
     currentStickerStyle = { emoji, fontSize: size };
 
-    // update selected visual (optional)
+    // update selected visual
     document.querySelectorAll(".tool-btn").forEach((el) =>
       el.classList.remove("selectedTool")
     );
     b.classList.add("selectedTool");
 
-    // rebuild preview for sticker
     rebuildPreviewFromTool();
   });
-  stickerBar.appendChild(b);
-});
+  return b;
+}
 
-// Append stickerBar somewhere near your existing toolbar/canvas:
-document.body.appendChild(stickerBar);
+function createCustomStickerButton() {
+  const add = document.createElement("button");
+  add.className = "tool-btn sticker-btn";
+  add.title = "Add a custom sticker";
+  add.textContent = "➕ Custom";
+  add.addEventListener("click", () => {
+    const input = prompt("Enter a sticker (emoji or short text):", "⭐");
+    if (!input) return;
+    const value = input.trim();
+    if (value.length === 0) return;
+    const newSticker = { name: value, emoji: value, size: 36 };
+    stickers.push(newSticker);
+    renderStickerButtons();
+    // auto-select the newly added sticker
+    currentTool = "sticker";
+    currentStickerStyle = { emoji: value, fontSize: 36 };
+    rebuildPreviewFromTool();
+    // Highlight the last sticker button
+    const btns = stickerBar.querySelectorAll<HTMLButtonElement>(".sticker-btn");
+    const last = btns[btns.length - 2]; // -1 is the Custom button itself
+    if (last) {
+      document.querySelectorAll(".tool-btn").forEach((el) =>
+        el.classList.remove("selectedTool")
+      );
+      last.classList.add("selectedTool");
+    }
+  });
+  return add;
+}
 
-toolbar.append(btnPen, btnMarker);
+function renderStickerButtons() {
+  // Clear and rebuild: all stickers + "Custom" button
+  stickerBar.innerHTML = "";
+  stickers.forEach((entry) => {
+    stickerBar.appendChild(createStickerButton(entry));
+  });
+  stickerBar.appendChild(createCustomStickerButton());
+}
+
+// Build initial sticker buttons
+renderStickerButtons();
 
 /* ---- Drawable Interfaces ----------------------------------- */
 export interface Displayable {
@@ -402,6 +443,9 @@ document.body.append(
   undoButton,
   redoButton,
 );
+
+/* Appendings */
+toolbar.append(btnPen, btnMarker);
 
 /* Now that toolbar exists in DOM, init its handlers */
 initToolButtons();
