@@ -187,14 +187,17 @@ export class MarkerLine implements DrawableThing {
 class StickerShape implements DrawableThing {
   private x: number;
   private y: number;
+  private angle: number;
   constructor(
     x: number,
     y: number,
     private emoji: string,
     private fontSize: number,
+    angle = 0,
   ) {
     this.x = x;
     this.y = y;
+    this.angle = angle;
   }
   drag(x: number, y: number) { // <— MOVE, don’t keep a path
     this.x = x;
@@ -206,7 +209,9 @@ class StickerShape implements DrawableThing {
     ctx.textBaseline = "middle";
     ctx.font =
       `${this.fontSize}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`;
-    ctx.fillText(this.emoji, this.x, this.y);
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.angle);
+    ctx.fillText(this.emoji, 0, 0);
     ctx.restore();
   }
 }
@@ -244,10 +249,18 @@ class CirclePreview implements PreviewRenderable {
 class StickerPreview implements PreviewRenderable {
   private x = 0;
   private y = 0;
+  private angle = 0;
+  private angularVel = Math.PI;
+
   constructor(private emoji: string, private fontSize: number) {}
+
   setPos(x: number, y: number) {
     this.x = x;
     this.y = y;
+  }
+  step(dt: number) {
+    this.angle += this.angularVel * dt;
+    if (this.angle > Math.PI * 2) this.angle -= Math.PI * 2;
   }
   draw(ctx: CanvasRenderingContext2D) {
     ctx.save();
@@ -256,8 +269,14 @@ class StickerPreview implements PreviewRenderable {
     ctx.textBaseline = "middle";
     ctx.font =
       `${this.fontSize}px system-ui, "Apple Color Emoji", "Segoe UI Emoji"`;
-    ctx.fillText(this.emoji, this.x, this.y);
+    // New rotational preview
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.angle);
+    ctx.fillText(this.emoji, 0, 1);
     ctx.restore();
+  }
+  getAngle() {
+    return this.angle;
   }
 }
 
@@ -331,7 +350,14 @@ function rebuildPreviewFromTool() {
     );
   }
 }
-
+/* ---- Random Color Function ----*/
+function randomInkColor(): string {
+  // bright, readable hues
+  const h = Math.floor(Math.random() * 360); // 0–359
+  const s = 80; // %
+  const l = 50; // %
+  return `hsl(${h} ${s}% ${l}%)`;
+}
 /* ---- Hook up toolbar (now that buttons exist) --------------- */
 function initToolButtons() {
   const buttons = Array.from(
@@ -341,19 +367,20 @@ function initToolButtons() {
     btn.addEventListener("click", () => {
       const name = btn.dataset.tool ?? "custom";
       const width = Number(btn.dataset.width ?? "3");
-      const color = btn.dataset.color ?? "#222";
 
       // Allows to switch back to pen/marker after using sticker
       if (name === "pen" || name === "marker") {
         currentTool = "marker";
+        const randomColor = randomInkColor();
+
+        currentToolStyle = {
+          name,
+          lineWidth: Number.isFinite(width) ? width : 3,
+          strokeStyle: randomColor,
+          lineCap: "round",
+        };
       }
 
-      currentToolStyle = {
-        name,
-        lineWidth: Number.isFinite(width) ? width : 3,
-        strokeStyle: color,
-        lineCap: "round",
-      };
       buttons.forEach((b) => b.classList.remove("selectedTool"));
       btn.classList.add("selectedTool");
       rebuildPreviewFromTool();
@@ -380,11 +407,16 @@ canvas.addEventListener("pointerdown", (e) => {
       lineCap: currentToolStyle.lineCap ?? "round",
     });
   } else { // sticker
+    let angle = 0;
+    if (preview instanceof StickerPreview) {
+      angle = preview.getAngle();
+    }
     currentShape = new StickerShape(
       x,
       y,
       currentStickerStyle.emoji,
       currentStickerStyle.fontSize,
+      angle,
     );
   }
 
@@ -423,6 +455,14 @@ canvas.addEventListener("tool-moved", (e: Event) => {
   if (!preview) return;
   preview.setPos(ev.detail.x, ev.detail.y);
   renderAll(); // re-paint to show the preview
+});
+
+let hoveringCanvas = false;
+canvas.addEventListener("pointerenter", () => {
+  hoveringCanvas = true;
+});
+canvas.addEventListener("pointerleave", () => {
+  hoveringCanvas = false;
 });
 
 /* ---- Undo / Redo / Clear ----------------------------------- */
@@ -501,7 +541,27 @@ document.body.append(
 
 /* Appendings */
 toolbar.append(btnPen, btnMarker);
-
 /* Now that toolbar exists in DOM, init its handlers */
 initToolButtons();
 rebuildPreviewFromTool();
+
+/* Animation while hovering */
+let lastT = performance.now();
+function tick(now: number) {
+  const dt = (now - lastT) / 1000; // seconds
+  lastT = now;
+
+  // Rotate only when hovering, using sticker tool, not actively dragging
+  if (
+    hoveringCanvas &&
+    currentTool === "sticker" &&
+    preview instanceof StickerPreview &&
+    !currentShape
+  ) {
+    preview.step(dt);
+    renderAll();
+  }
+
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
