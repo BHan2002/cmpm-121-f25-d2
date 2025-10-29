@@ -108,6 +108,34 @@ function renderStickerButtons() {
 // Build initial sticker buttons
 renderStickerButtons();
 
+function makeExportButton() {
+  const button = document.createElement("button");
+  button.textContent = "Export (1024×1024)";
+  button.addEventListener("click", () => {
+    const out = document.createElement("canvas");
+    out.width = 1024;
+    out.height = 1024;
+    const outCtx = out.getContext("2d")!;
+
+    const sx = 1024 / canvas.clientWidth;
+    const sy = 1024 / canvas.clientHeight;
+    outCtx.save();
+    outCtx.scale(sx, sy);
+
+    for (const thing of displayList) thing.display(outCtx);
+
+    outCtx.restore();
+
+    const anchor = document.createElement("a");
+    anchor.href = out.toDataURL("image/png");
+    anchor.download = "sketchpad.png";
+    anchor.click();
+  });
+  return button;
+}
+
+const exportButton = makeExportButton();
+
 /* ---- Drawable Interfaces ----------------------------------- */
 export interface Displayable {
   display(ctx: CanvasRenderingContext2D): void;
@@ -442,6 +470,7 @@ document.body.append(
   makeClearButton(),
   undoButton,
   redoButton,
+  exportButton,
 );
 
 /* Appendings */
